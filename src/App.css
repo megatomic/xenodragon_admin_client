@@ -1,0 +1,82 @@
+:root {
+  --background-color: #cfe2f3ff;
+  --base-color: #f3f3f3ff;
+  --primary-color: #8e7cc3ff; /* #0097a7ff; */
+  --secondary-color: #212c36ff;
+  --third-color: #93c47dff; /* #f86a1cff;*/
+  --primary-text-color: #ffffff;
+  --btn-primary-color: #8e7cc3ff; /* #0097a7ff;*/
+  --btn-secondary-color: #93c47dff; /* #f86a1cff;*/
+  --btn-confirm-color: #6fa8dcff; /* #4285f4ff;*/
+  --btn-active-color: #93c47dff; /* #f86a1cff;*/
+  --btn-disabled-color: #dddddd;
+  --base-line-color: #b8ceda;
+  --table-line-color: #cfe2f3ff;
+  --base-list-hover-color: #b8ceda;
+
+  --responsive-width: 758px;
+}
+
+.text {
+  zoom: 0.1;
+}
+
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@font-face {
+  font-family: 'TitleFont';
+  src: url('./common/fonts/BlackHanSans-Regular.ttf');
+}
+
+@font-face {
+  font-family: 'SubtitleFont';
+  src: url('./common/fonts/DoHyeon-Regular.ttf');
+}
+
+
+.toast-warning-message {
+  background-color: var(--primary-color);
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

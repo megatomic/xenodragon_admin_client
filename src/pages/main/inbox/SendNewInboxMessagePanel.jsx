@@ -1,0 +1,397 @@
+import React, {useState,useRef, forwardRef, useCallback, useMemo,useEffect} from 'react';
+import { CSVLink, CSVDownload } from "react-csv"; 
+import MediaQuery from 'react-responsive';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import dayjs from 'dayjs';
+import * as utils from '../../../common/js/utils';
+import { toast } from 'react-toastify';
+
+import * as constants from '../../../common/constants';
+import * as mainStyled from '../MainPageStyles';
+import * as contentStyled from '../MainContentStyles';
+import * as styled from './InboxMessageManagePageStyles';
+import RewardSettingPanel from './RewardSettingPanel';
+
+import Button1 from '../../../components/Button1';
+import InputField1 from '../../../components/InputField1';
+import TextArea1 from '../../../components/TextArea1';
+import CheckBox from '../../../components/CheckBox';
+import DropBox from '../../../components/DropBox';
+import RadioGroup from '../../../components/RadioGroup';
+import Popup from '../../../components/Popup';
+
+import useCommon from '../../../store/useCommonStorageManager';
+import useMessage from '../../../store/useMessageDataManager';
+import {enumLangCode,getLangValue,getLangCode,getTitle,getContent,getDefaultTable} from '../notifications/NotificationManageContainer';
+
+const titleText1 = '새 메세지 보내기';
+const titleText2 = '메세지 보기/수정';
+
+const DatePickerInput = forwardRef((props) => {
+    return (
+        <InputField1 responsive='1.2' width='8vw' height='2vw' {...props} />
+    )
+});
+
+const SendNewInboxMessagePanel = (props) => {
+
+  const fileReader = new FileReader();
+
+  console.log('props=',props);
+
+    const { startLoading, setStartLoading } = useCommon();
+    const { msgList, requestNewMessage, requestModifyMessage } = useMessage();
+    const [langType, setLangType] = useState(0);
+    const [sendType, setSendType] = useState(props.editMode ? (props.editInfo.msgInfo.targetUserID != '' ? constants.MSGTARGET_TYPE_USER : constants.MSGTARGET_TYPE_ALL) : constants.MSGTARGET_TYPE_ALL);
+    const [targetUserID, setTargetUserID] = useState(props.editMode ? props.editInfo.msgInfo.targetUserID : '');
+    const [targetUserIDTable, setTargetUserIDTable] = useState([]);
+    const [startDate, setStartDate] = useState(props.editMode ? new Date(props.editInfo.msgInfo.startTime) : new Date(Date.now() + 10 * 60000));
+    const [activationFlag, setActivationFlag] = useState(props.editMode ? props.editInfo.msgInfo.activationFlag : false);
+    const [reservationFlag, setReservationFlag] = useState(props.editMode ? props.editInfo.msgInfo.reservationFlag : false);
+    const [subMenuOpen,setSubMenuOpen] = useState(false);
+    const [titleTable, setTitleTable] = useState(props.editMode ? props.editInfo.msgInfo.titleTable : getDefaultTable);
+    const [contentTable, setContentTable] = useState(props.editMode ? props.editInfo.msgInfo.titleTable : getDefaultTable);
+    const [rewardInfo, setRewardInfo] = useState(props.editMode ? JSON.parse(props.editInfo.msgInfo.rewardData) : []);
+    const [rewardDescInfo, setRewardDescInfo] = useState('');
+    const [popupShown, setPopupShown] = useState(false);
+    const [popupContent, setPopupContent] = useState('');
+
+    const [rewardSetting, setRewardSetting] = useState(false);
+
+    const startInputRef = useRef(null);
+
+    const filterTargetUserList = [
+        {id:1,name:'전체'},
+        {id:2,name:'특정 유저'}
+    ];
+
+    const onTargetUserItemClick = useCallback((item) => {
+        setSendType(item.id === 1 ? constants.MSGTARGET_TYPE_ALL : constants.MSGTARGET_TYPE_USER);
+        if (item.id === 1) {
+          setTargetUserID('');
+        }
+      });
+    
+      const onReservedNotiCheckBoxChanged = (date) => {
+        setStartDate(date);
+      };
+    
+      const onStartTimeDatePickerChanged = (date) => {
+        setStartDate(date);
+    
+        const startDate2 = dayjs(utils.makeDateTimeStringFromDate(date));
+    
+        if (startDate2.isBefore(dayjs()) === true) {
+          toast.error('예약 전송일은 지금 시각 이후이어야 합니다.');
+        }
+      };
+    
+      const onTitleChanged = (e) => {
+
+        const langCode = enumLangCode[langType].code;
+        const langValue = getLangValue(langCode);
+    
+        const newTitleTable = titleTable.map(item=>{
+          if(item.langValue === langValue) {
+            return {...item,content:e.target.value};
+          } else {
+            return item;
+          }
+        });
+    
+        setTitleTable(table=>newTitleTable);
+      };
+    
+      const onUserIDListContentChanged = (e) => {
+
+        setTargetUserID(e.target.value);
+
+        setTargetUserIDTable(e.target.value.split(","));
+      };
+
+      const onContentChanged = (e) => {
+    
+        const langCode = enumLangCode[langType].code;
+        const langValue = getLangValue(langCode);
+    
+        const newContentTable = contentTable.map(item=>{
+          if(item.langValue === langValue) {
+            return {...item,content:e.target.value};
+          } else {
+            return item;
+          }
+        });
+    
+        setContentTable(table=>newContentTable);
+      };
+    
+      const onActivationButtonClick = (idx) => {
+        setActivationFlag(idx === 0 ? true : false);
+      };
+    
+      const onReservationButtonClick = (idx) => {
+        setReservationFlag(idx === 1 ? true : false);
+      };
+    
+      const onSendButtonClick = async (e) => {
+         
+        const contentInfo=[];
+        contentInfo.push(` `);
+        contentInfo.push(`제목:${getTitle(titleTable,langType)}`);
+        contentInfo.push(`내용:${getContent(contentTable,langType)}`);
+        contentInfo.push(`보상항목:${JSON.stringify(rewardDescInfo)}`);
+        contentInfo.push(` `);
+        contentInfo.push("우편함 보상메세지를 전송하시겠습니까?");
+        contentInfo.push(` `);
+    
+        setPopupContent(contentInfo);
+        setPopupShown(true);
+      };
+    
+      const onPopupButtonClick = async (buttonIdx) => {
+        if (buttonIdx === 0) {
+          setStartLoading(true);
+    
+          //console.log('sendType=', sendType, ',targetUserID=', targetUserID);
+      
+          let resultInfo;
+          if (props.editMode === true) {
+            resultInfo = await requestModifyMessage({
+              msgID: props.editInfo.msgInfo.msgID,
+              msgType: constants.MESSAGE_TYPE_INBOX,
+              targetType: sendType,
+              targetUserID: sendType === constants.MSGTARGET_TYPE_ALL ? '' : targetUserID,
+              targetUserIDTable: targetUserID,
+              titleTable: titleTable,
+              contentTable: contentTable,
+              reservationFlag: reservationFlag.toString(),
+              startTime: utils.makeDateTimeStringFromDate(startDate),
+              liveFlag: activationFlag.toString(),
+              rewardData:rewardInfo
+            });
+          } else {
+            resultInfo = await requestNewMessage({
+              msgType: constants.MESSAGE_TYPE_INBOX,
+              targetType: sendType,
+              targetUserID: sendType === constants.MSGTARGET_TYPE_ALL ? '' : targetUserIDTable,
+              targetUserIDTable: targetUserID,
+              titleTable: titleTable,
+              contentTable: contentTable,
+              reservationFlag: reservationFlag.toString(),
+              startTime: utils.makeDateTimeStringFromDate(startDate),
+              liveFlag: activationFlag.toString(),
+              rewardData:rewardInfo
+            });
+          }
+          console.log('[RESULT INFO]=',resultInfo);
+      
+          if (resultInfo.resultCode !== 0) {
+            toast.error(resultInfo.message);
+          } else {
+            if (props.editMode === true) {
+              toast.info('우편함 항목이 수정되었습니다.');
+            } else {
+              if(resultInfo.data.failUserIDList !== undefined && resultInfo.data.failUserIDList.length > 0) {
+                toast.info(`전송에 실패한 유저ID가 있습니다:${resultInfo.data.failUserIDList}`,{autoClose:60000});
+              } else {
+                toast.info('새 우편함 항목이 요청되었습니다.');
+              }
+            }
+          }
+          setStartLoading(false);
+      
+          onPopupCloseButtonClick(null);
+          onCancelButtonClick(null);
+        } else {
+          onPopupCloseButtonClick(null);
+        }
+      };
+    
+      const onPopupCloseButtonClick = (e) => {
+        setPopupShown(false);
+      };
+
+      const onCancelButtonClick = (e) => {
+        props.onMsgEditModeChange(false);
+      };
+
+      const onRewardSettingButtonClick = (e) => {
+        setRewardSetting(true);
+      };
+
+      const mainTitle = useMemo(()=> {
+        return props.editMode ? `${props.editInfo.parentTitle} > ${titleText2}` : titleText1;
+      });
+    
+      const onRewardSettingApplyButtonClick = (e,newRewardInfo,newRewardDescInfo) => {
+
+        setRewardInfo(newRewardInfo);
+        setRewardDescInfo(newRewardDescInfo);
+        setRewardSetting(false);
+      };
+
+      const onLoadCSVFileInfo = (e) => {
+
+        const csvFileToArray = string => {
+            const csvRows = string.split("\n");
+             
+            const curItemTable = [];
+            const table1=[];
+            let targetUserIDStr = "";
+            for(let i=0;i<csvRows.length;i++) {
+                const arr2 = csvRows[i].split(',');
+                table1.push(arr2[0]);
+                targetUserIDStr += arr2[0];
+                if(i+1 < csvRows.length) {
+                  targetUserIDStr += ",";
+                }
+            }
+
+            console.log('targetUserIDStr=',targetUserIDStr);
+
+            setTargetUserIDTable(table1);
+            setTargetUserID(targetUserIDStr);
+        };
+
+        fileReader.onload = function (event) {
+            const text = event.target.result;
+            csvFileToArray(text);
+        };
+
+        if(e.target.files !== undefined && e.target.files.length > 0) {
+            fileReader.readAsText(e.target.files[0]);
+        }
+    };
+
+      const onRewardSettingCancelButtonClick = (e) => {
+
+        setRewardSetting(false);
+      };
+
+      const onLangCodeItemClick = (item) => {
+        setLangType(item.id-1);
+      };
+
+      const onSubMenuClick = (e) => {
+        setSubMenuOpen(state=>!subMenuOpen);
+      };
+    
+      useEffect(()=> {
+        props.onSubMenuOpenClicked(subMenuOpen);
+      },[subMenuOpen]);
+
+    return (
+      rewardSetting===true?
+        <RewardSettingPanel parentTitle={mainTitle} rewardInfo={rewardInfo} onApplyButtonClick={(e,newRewardInfo,newRewardDescInfo)=>onRewardSettingApplyButtonClick(e,newRewardInfo,newRewardDescInfo)} onCancelButtonClick={(e)=>onRewardSettingCancelButtonClick(e)} /> :
+        (
+        <contentStyled.ContentWrapper>
+            <contentStyled.ContentHeader>
+            <MediaQuery maxWidth={768}>
+            &nbsp;&nbsp;<i className='fas fa-bars' style={{fontSize:'3vw'}} onClick={(e)=>onSubMenuClick(e)} />
+        </MediaQuery>
+            <span id="subtitle">{mainTitle}</span>
+                <span>&nbsp;</span>
+                <span id='button'>
+                    <Button1 responsive='1.6' bgColor='var(--btn-confirm-color)' width='6vw' height='2vw' onClick={(e) => onSendButtonClick(e)}>
+                        {props.editMode ? '수정하기' : '전송하기'}
+                    </Button1>
+                </span>
+                <span id="button">
+                    <Button1 responsive='1.6' bgColor="var(--btn-secondary-color)" width="6vw" height="2vw" onClick={(e) => onCancelButtonClick(e)}>
+                        취소하기
+                    </Button1>
+                </span>
+            </contentStyled.ContentHeader>
+            <contentStyled.MainContentHeaderHorizontalLine marginTop='0.5vw' />
+
+            <contentStyled.ContentBody>
+                <br /><br />
+            <contentStyled.FilterGroup marginLeft='5.4vw'>
+                <contentStyled.FilterItem>
+                    <span id='name'>전송 대상</span>
+                    <span id='dropdown'><DropBox responsive='1.6' width='10vw' height='2vw'text={filterTargetUserList[targetUserID === '' ? 0 : 1].name} fontSize='0.6vw' itemList={filterTargetUserList} menuItemClick={(item)=>onTargetUserItemClick(item)} /></span>
+                </contentStyled.FilterItem>
+            </contentStyled.FilterGroup>
+            <br />
+            <styled.InputArea leftMargin="4.2vw" width="90%">
+              <span className="row1">
+                <label>유저목록</label>
+              </span>
+              <span className="row2">
+              <TextArea1 responsive='1.6' value={targetUserID} width='43.5vw' height='6vw' readOnly={sendType === constants.MSGTARGET_TYPE_ALL?true:false} onChange={(e) => onUserIDListContentChanged(e)} />
+              </span>
+              <span className="row3">&nbsp;</span>
+            </styled.InputArea>
+            <styled.InputArea leftMargin="0vw" width="90%">
+              <form>
+                  <input
+                  type={"file"}
+                  id={"csvFileInput"}
+                  accept={".csv"}
+                  onChange={onLoadCSVFileInfo}
+                  />
+              </form>
+            </styled.InputArea>
+            <styled.InputArea leftMargin="4.2vw" width="70%">
+              <span className="row1">
+                <label>언어</label>
+              </span>
+              <span className="row2">
+                <DropBox responsive='1.3' width='10vw' height='2vw' fontSize='0.6vw' text={enumLangCode[langType].name} itemList={enumLangCode} menuItemClick={(item)=>onLangCodeItemClick(item)} />
+              </span>
+              <span className="row3">&nbsp;</span>
+            </styled.InputArea>
+            <styled.InputArea leftMargin='4vw' width='70%'>
+                <span className="row1">
+                    <label>제목</label>
+                    <label>내용</label>
+                </span>
+                <span className="row2">
+                    <InputField1 responsive='1.6' value={getTitle(titleTable,langType)} width='28vw' height='2vw' placeholder={'4자이상 20자 미만'} onChange={(e) => onTitleChanged(e)} />
+                    <TextArea1 responsive='1.6' value={getContent(contentTable,langType)} width='28vw' height='12vw' onChange={(e) => onContentChanged(e)} />
+                </span>
+                <span className="row3">&nbsp;</span>
+            </styled.InputArea>
+            <br />
+            <contentStyled.SettingGroupArea leftMargin='0vw' width='90%'>
+                <styled.OptionItem>
+                <span id="option_title">보상 항목</span>
+                    <span id='col1'>{JSON.stringify(rewardInfo)}</span>
+                    <span id='col2'><Button1 responsive='1.6' bgColor='var(--btn-secondary-color)' width='6vw' height='2vw' onClick={(e)=>onRewardSettingButtonClick(e)}>설정</Button1></span>
+                </styled.OptionItem>
+                <br />
+                <styled.OptionItem>
+                    <span id="option_title">활성화 여부</span>
+                    <span id="col1">
+                    <RadioGroup responsive='1.6' initButtonIndex={activationFlag === true ? 0 : 1} interMargin="1vw" nameTable={['활성화', '비활성화']} buttonClicked={(idx) => onActivationButtonClick(idx)} />
+                    </span>
+                </styled.OptionItem>
+                <br />
+                <styled.OptionItem>
+                    <span id="option_title">메세지 게시 시점</span>
+                    <span id="col1">
+                    <RadioGroup responsive='1.6' initButtonIndex={reservationFlag ? 1 : 0} interMargin="1vw" nameTable={['즉시', '예약']} buttonClicked={(idx) => onReservationButtonClick(idx)} />
+                    </span>
+                    <span id="option_title">예약 전송일</span>
+                    <span id="sub_col1">
+                    <DatePicker selected={startDate} onChange={onStartTimeDatePickerChanged} showTimeSelect dateFormat="Pp" timeIntervals={10} customInput={<DatePickerInput ref={startInputRef} />} />
+                    </span>
+                </styled.OptionItem>
+                <br />
+            </contentStyled.SettingGroupArea>
+            </contentStyled.ContentBody>
+            <Popup
+                shown={popupShown}
+                popupTypeInfo={{ type: 'YesNo', button1Text: '예', button2Text: '아니오' }}
+                title="주의"
+                content={popupContent}
+                buttonClick={(buttonNo) => onPopupButtonClick(buttonNo)}
+                closeClick={onPopupCloseButtonClick}
+            />
+        </contentStyled.ContentWrapper>
+        )
+    )
+};
+
+export default SendNewInboxMessagePanel;
